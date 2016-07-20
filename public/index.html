@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html>
+  <head>
+  
+    <meta charset="utf-8">
+    <title>Human Image Classifier</title>
+	<link rel="icon" type="image/png" href="/favicon.png" />
+	<link rel="manifest" href="/manifest.json" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+	<link rel="stylesheet" href="https://code.getmdl.io/1.1.3/material.indigo-pink.min.css" />
+	<script defer src="https://code.getmdl.io/1.1.3/material.min.js"></script>
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+	
+	<style>
+	
+	code {
+		white-space: pre-wrap;       /* Since CSS 2.1 */
+		white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+		white-space: -pre-wrap;      /* Opera 4-6 */
+		white-space: -o-pre-wrap;    /* Opera 7 */
+		word-wrap: break-word;       /* Internet Explorer 5.5+ */
+	}
+	
+	a.mdl-layout-title {
+		color: #FFFFFF;
+		text-decoration: none;
+	}
+	div.mdl-cell.main-cell form > img {
+		width: 100%;
+	}
+	div.mdl-cell.main-cell form > div {
+		width: 100%;
+	}
+	div.mdl-cell.main-cell form label.mdl-checkbox {
+		width: auto;
+		margin: 0 10px 10px 0;
+	}
+	div.mdl-cell.main-cell img {
+		display: block;
+		margin: 0 auto;
+	}
+	
+	button.mdl-button.full-button {
+		margin: 5px;
+		width: 98%;
+		width: calc(100% - 12px);
+	}
+	
+	button.mdl-button.half-button {
+		margin: 5px;
+		width: 49%;
+		width: calc(50% - 12px);
+	}
+	
+	button.mdl-button.nav-button {
+		margin: 0;
+		width: 25%!important;
+		width: calc(25% - 3px)!important;
+	}
+	
+	button.mdl-button.ft-button {
+		margin: 5px 10px 10px 5px;
+		width: calc(100% - 12px)!important;
+		border: 1px solid black;
+	}
+	button.mdl-button.ft-button.mdl-button--raised {
+		width: calc(100% - 10px)!important;
+	}
+	
+	</style>
+	
+	<script src="https://www.gstatic.com/firebasejs/3.2.0/firebase.js"></script>
+	<script>
+	// Initialize Firebase
+	var config = {
+		apiKey: "AIzaSyAHe3W6qFapZOgMuC5qJErOLYjEmjWwCoQ",
+		authDomain: "human-image-classifier.firebaseapp.com",
+		databaseURL: "https://human-image-classifier.firebaseio.com",
+		storageBucket: "human-image-classifier.appspot.com",
+	};
+	firebase.initializeApp(config);
+	</script>
+
+	<script>
+	
+	function clearImages() {
+		window._curr = -1;
+		window._images = [];
+		window._features = [];
+		document.querySelector('#i-image').src = 'https://placehold.it/600x400';
+	}
+	
+	function init(images, features, freeform, multiselect) {
+		window._header = features;
+		window._features = [];
+		window._images = images;
+		window._freeform = freeform;
+		window._multiselect = multiselect;
+		window._numFeatures = features.length;
+		for (var i = 0; i < images.length; i++) {
+			window._features.push(new Array(features.length));
+		}
+		
+		var buttonTpl = 
+			'<button id="i-feature-{{ix}}" class="mdl-button mdl-js-button mdl-js-ripple-effect mdl-button--primary ft-button" onclick="toggleFeature({{ix}})">' +
+				'{{label}}' +
+			'</button>';
+			
+		var counter = 0;
+		var addHtml = '';
+		for (var i = 0; i < features.length; i++) {
+			if (i > 0 || features[i].length > 0) {
+				addHtml += buttonTpl
+					.split('{{ix}}').join(counter++)
+					.replace('{{label}}', counter + ': ' + features[i]);
+			}
+		}
+		document.querySelector('#i-feature-buttons').innerHTML = addHtml;
+		document.querySelector('#i-freeform__container').style.display = freeform ? 'block' : 'none';
+
+		nav(0);
+	}
+	
+	function loadData(id, onsuccess, onerror) {
+		var storageRef = window._storage.ref();
+		
+		storageRef.child(id + '.json').getDownloadURL().then(function(url) {
+			$.getJSON(url, function(data) {
+				return onsuccess(data);
+				
+			}).fail(function(jqXHR, textStatus, errorThrown) {
+				console.log('Error loading data:', textStatus);
+				onerror();
+			});
+		}).catch(onerror);
+	}
+	
+	function previewForm() {
+		var images = document.querySelector('#g-images').value.split(',');
+		var features = document.querySelector('#g-features').value.split(',');
+		//var freeform = document.querySelector('#g-freeform').checked;
+		//var multiselect = document.querySelector('#g-multiselect').checked;
+		var freeform = false;
+		var multiselect = false;
+		
+		init(images, features, freeform, multiselect);
+	}
+		
+	function uid() {
+		return ("000000" + (Math.random() * Math.pow(36, 6) << 0).toString(36)).slice(-6);
+	}
+	
+	function displayForm() {
+	
+		// Hide form maker elements
+		document.querySelector('#classifier-maker').style.display = 'none';
+		document.querySelector('#classifier-input h3').style.display = 'none';
+		
+		// Show result button
+		document.querySelector('#i-result-button').style.display = 'block';
+
+		// Bind key events
+		document.addEventListener("keydown", function(event) {
+		
+			// Early exit: Only take action if focus is not currently in a text field
+			if(document.activeElement.nodeName === 'INPUT') {
+				return;
+			}
+			
+			var knownCodes = {
+				13: 'enter',
+				37: 'left',
+				38: 'up',
+				39: 'right',
+				40: 'down'
+			};
+			for (var i = 1; i <= 9; i++) {
+				knownCodes[48 + i] = i;
+				knownCodes[96 + i] = i;
+			}
+			
+			switch(knownCodes[event.which]) {
+				case 'enter':
+					nav(window._curr + 1);
+					break;
+				case 'left':
+					nav(event.shiftKey ? 0 : window._curr - 1);
+					break;
+				case 'right':
+					nav(event.shiftKey ? nav(window._images.length - 1) : window._curr + 1);
+					break;
+				case 'up':
+					nav(0);
+					break;
+				case 'down':
+					nav(window._images.length - 1);
+					break;
+					
+				case 1:
+				case 2:
+				case 3:
+				case 4:
+				case 5:
+				case 6:
+				case 7:
+				case 8:
+				case 9:
+					document.querySelector('#i-feature-' + (knownCodes[event.which] - 1)).click();
+					break;
+					
+				default:
+					break;
+			}
+		});
+	}
+
+	function publishForm() {
+		
+		// Serialize data
+		var data = new Blob([JSON.stringify({
+			images: document.querySelector('#g-images').value.split(','),
+			features: document.querySelector('#g-features').value.split(','),
+			//freeform: document.querySelector('#g-freeform').checked,
+			//multiselect: document.querySelector('#g-multiselect').checked
+			freeform: false,
+			multiselect: false
+		}, {type : 'application/json'})]);
+		
+		// Generate random ids until no collision is guaranteed
+		var storageRef = window._storage.ref();
+		function testUid() {
+			var id = uid();
+			var jsonRef = storageRef.child(id + '.json');
+			console.log('jsonRef:', jsonRef);
+
+			// Get metadata properties
+			jsonRef.getMetadata().then(function(metadata) {
+				// Metadata exists, so there was a collision
+				return testUid();
+			  
+			}).catch(function(error) {
+				// If the error was storage/object_not_found then we can write
+				if (error.code === 'storage/object-not-found') {
+					var uploadTask = jsonRef.put(data);
+
+					// Register three observers:
+					// 1. 'state_changed' observer, called any time the state changes
+					// 2. Error observer, called on failure
+					// 3. Completion observer, called on successful completion
+					uploadTask.on('state_changed', function(snapshot){
+						// Observe state change events such as progress, pause, and resume
+						
+					}, function(error) {
+						// Handle unsuccessful uploads
+						
+					}, function() {
+						// Handle successful uploads on complete
+						window.location = '/' + id;
+					});
+				} else {
+					console.log(error); // TODO
+					console.log(error.code); // TODO
+				}
+			});
+		}
+		testUid();
+	}
+	
+	function nav(ix) {
+		if (window._images && window._images.length > 0) {
+			window._curr = Math.min(window._images.length - 1, Math.max(0, ix));
+			document.querySelector('#i-image').src = window._images[window._curr];
+			redraw();
+		}
+	}
+	
+	function toggleFeature(ix) {
+		var val = !!(window._features[window._curr][ix]);
+		window._features[window._curr][ix] = val ? 0 : 1;
+		redraw();
+	}
+	
+	function updateFreeform() {
+		window._features[window._curr][window._numFeatures] = document.querySelector('#i-freeform').value;
+	}
+	
+	function redraw() {
+		for (var i = 0; i < window._numFeatures; i++) {
+			if (window._features[window._curr][i]) {
+				document.querySelector('#i-feature-' + i).classList.add('mdl-button--raised');
+			} else {
+				document.querySelector('#i-feature-' + i).classList.remove('mdl-button--raised');
+				document.querySelector('#i-feature-' + i).blur();
+			}
+		}
+		if (window._freeform) {
+			document.querySelector('#i-freeform').value = window._features[window._curr][window._numFeatures] || '';
+		}
+	}
+	
+	function downloadResults() {
+		var res = 'URL';
+		for (var i = 0; i < window._numFeatures; i++) {
+			res += ',' + window._header[i];
+		}
+		
+		for (var i = 0; i < window._features.length; i++) {
+			var line = '"' + window._images[i] + '"';
+			if (window._freeform) {
+				line += ',"' + window._features[i][window._numFeatures] + '"';
+			}
+			for (var j = 0; j < window._numFeatures; j++) {
+				line += ',' + (!!window._features[i][j] ? 1 : 0);
+			}
+			res += '</br>\n' + line;
+		}
+		
+		var w = window.open();
+		w.document.open();
+		w.document.write('<code>' + res + '</code>');
+		w.document.close();
+	}
+	
+	function main() {
+	
+		// Get a reference to the storage service
+		window._storage = firebase.storage();
+		
+		// Retrieve id and redirect to '/' (for now)
+		var id = window.location.pathname.substr(1);
+		
+		clearImages();
+		if (id) {
+		
+			// Special case: about
+			if (id === 'about') {
+				document.querySelector('#about-page').style.display = 'block';
+				document.querySelector('#classifier-maker').style.display = 'none';
+				document.querySelector('#classifier-input').style.display = 'none';
+				
+			// Otherwise try to find corresponding data
+			} else {
+			
+				window.history.replaceState(null, null, '/');
+				loadData(id, function(data) {
+					window.history.replaceState(null, null, id);
+					init(data.images, data.features, data.freeform);
+					displayForm();
+					
+				}, function() {
+				});
+			}
+		}
+	}
+	</script>
+
+  </head>
+  <body onload="main()">
+  
+	<div class="mdl-layout mdl-js-layout mdl-layout--fixed-header">
+		<header class="mdl-layout__header">
+			<div class="mdl-layout__header-row">
+				<!-- Title -->
+				<a class="mdl-layout-title" href="/">Human Image Classifier</a>
+				<!-- Add spacer, to align navigation to the right -->
+				<div class="mdl-layout-spacer"></div>
+				<!-- Navigation. We hide it in small screens. -->
+				<nav class="mdl-navigation mdl-layout--large-screen-only">
+					<a class="mdl-navigation__link" href="/about">About</a>
+					<a class="mdl-navigation__link" href="https://github.com/omtinez/">Source code</a>
+				</nav>
+			</div>
+		</header>
+	<div class="mdl-layout__drawer">
+		<span class="mdl-layout-title">Menu</span>
+		<nav class="mdl-navigation">
+			<a class="mdl-navigation__link" href="/">Home</a>
+			<a class="mdl-navigation__link" href="/about">About</a>
+			<a class="mdl-navigation__link" href="https://github.com/omtinez/">Source code</a>
+		</nav>
+	</div>
+	<main class="mdl-layout__content">
+		<div class="page-content">
+			<div class="mdl-grid">
+				<!-- Spacer for large screen -->
+				<div class="mdl-cell mdl-cell--3-col"></div>
+				
+				<!-- Actual content -->
+				<div class="mdl-cell mdl-cell--6-col main-cell">
+				
+					<!-- The form to make new classifiers -->
+					<form id="classifier-maker" action="#" onsubmit="return false">
+						<h3>Image classifier options</h3>
+						<div class="mdl-textfield mdl-js-textfield">
+							<input class="mdl-textfield__input" type="text" id="g-images"/>
+							<label class="mdl-textfield__label" for="g-images">Comma-separated list of image sources</label>
+						</div>
+						<div class="mdl-textfield mdl-js-textfield">
+							<input class="mdl-textfield__input" type="text" id="g-features"/>
+							<label class="mdl-textfield__label" for="g-features">Comma-separated list of feature names</label>
+						</div>
+						<!--
+						<label class="mdl-checkbox mdl-js-checkbox" for="g-multiselect">
+							<input class="mdl-checkbox__input" type="checkbox" id="g-multiselect">
+							<span class="mdl-checkbox__label">Allow multiple selection</span>
+						</label>
+						<label class="mdl-checkbox mdl-js-checkbox" for="g-freeform">
+							<input class="mdl-checkbox__input" type="checkbox" id="g-freeform">
+							<span class="mdl-checkbox__label">Add freeform text feature</span>
+						</label>
+						-->
+						<button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect half-button" onclick="previewForm()">
+							Preview form
+						</button>
+						<button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect half-button" onclick="publishForm()">
+							Publish form
+						</button>
+					</form>
+					
+					<div class="mdl-layout-spacer" style="height:50px"></div>
+
+					<!-- The actual classifier form -->
+					<form id="classifier-input" action="#" onsubmit="return false">
+						<h3>Image classifier preview</h3>
+						
+						<!-- Navigation buttons -->
+						<button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect nav-button" onclick="nav(0)">
+							<< First
+						</button>
+						<button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect nav-button" onclick="nav(window._curr - 1)">
+							< Prev
+						</button>
+						<button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect nav-button" onclick="nav(window._curr + 1)">
+							Next >
+						</button>
+						<button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect nav-button" onclick="nav(window._images.length - 1)">
+							Last >>
+						</button>
+
+						<div class="mdl-layout-spacer" style="height:10px"></div>
+						
+						<div id="i-feature-buttons"></div>
+						<div id="i-freeform__container" class="mdl-textfield mdl-js-textfield" style="display:none">
+							<input class="mdl-textfield__input" type="text" id="i-freeform" onkeyup="updateFreeform()"/>
+							<label class="mdl-textfield__label" for="i-freeform">Text label</label>
+						</div>
+						
+						<!-- Image being classified -->
+						<img id="i-image" src="https://placehold.it/600x400" />
+																		
+						<!-- Download result button -->
+						<button id="i-result-button" class="mdl-button mdl-js-button mdl-button--raised mdl-button--primary mdl-js-ripple-effect full-button" style="display:none" onclick="downloadResults()">
+							Download Results
+						</button>						
+
+					</form>
+					
+					<!-- To be shown as "about" page -->
+					<div id="about-page" style="display:none">
+						<h3>About</h3>
+						<p>
+							Human Image Classifier is a simple way to manually classify medium to
+							moderately large groups of images. To get started, head to the main
+							page and fill out the list of images in CSV format; for example:
+						</p>
+						<code>https://farm8.staticflickr.com/7464/26442427324_183d7062fb_c.jpg,https://farm2.staticflickr.com/1659/26258547992_c5626fcd27_c.jpg,https://farm2.staticflickr.com/1585/24680999884_61c9580d89_c.jpg,https://farm2.staticflickr.com/1474/24452412284_072ec9baa4_c.jpg</code>
+						</br></br>
+						<p>
+							Then fill out the desired features to be classified by a human, also in
+							CSV format; for example:
+						</p>
+						<code>Good,Bad</code>
+						</br></br>
+						<p>
+							Hit the "PREVIEW FORM" button to make sure that it looks like it is
+							supposed to and, when you are ready, hit the "PUBLISH FORM" button.
+							Your browser will be redirected to a URL that you can copy/paste for
+							anyone to start classifying the images.
+						</p>
+						</br></br>
+						<p>
+							This is what a completed form looks like:
+						</p>
+						<img src="http://i.imgur.com/Hh6gpAW.png"/>
+					</div>
+				</div>
+				
+				<!-- Spacer for large screen -->
+				<div class="mdl-cell mdl-cell--3-col"></div>
+			</div>
+		</div>
+	</main>
+	</div>
+	
+  </body>
+</html>
