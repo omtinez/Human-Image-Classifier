@@ -28,6 +28,10 @@
 	div.mdl-cell.main-cell form > img {
 		width: 100%;
 	}
+	div.mdl-cell.main-cell form > img.half {
+        display: none;
+		width: calc(50% - 5px)!important;
+	}
 	div.mdl-cell.main-cell form > div {
 		width: 100%;
 	}
@@ -88,6 +92,9 @@
 		window._images = [];
 		window._features = [];
 		document.querySelector('#i-image').src = 'https://placehold.it/600x400';
+        document.querySelector('#i-image').style.display = 'block';
+                document.querySelector('#i-image-l').style.display = 'none';
+                document.querySelector('#i-image-r').style.display = 'none';
 	}
 	
 	function init(images, features, freeform, multiselect) {
@@ -269,7 +276,20 @@
 	function nav(ix) {
 		if (window._images && window._images.length > 0) {
 			window._curr = Math.min(window._images.length - 1, Math.max(0, ix));
-			document.querySelector('#i-image').src = window._images[window._curr];
+            var imgsrc = window._images[window._curr];
+            if (imgsrc.indexOf('::') === -1) {
+                document.querySelector('#i-image').src = imgsrc;
+                document.querySelector('#i-image').style.display = 'block';
+                document.querySelector('#i-image-l').style.display = 'none';
+                document.querySelector('#i-image-r').style.display = 'none';
+            } else {
+                var parts = imgsrc.split('::');
+                document.querySelector('#i-image-l').src = parts[0];
+                document.querySelector('#i-image-r').src = parts[1];
+                document.querySelector('#i-image').style.display = 'none';
+                document.querySelector('#i-image-l').style.display = 'inline-block';
+                document.querySelector('#i-image-r').style.display = 'inline-block';
+            }
 			redraw();
 		}
 	}
@@ -425,16 +445,16 @@
 						
 						<!-- Navigation buttons -->
 						<button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect nav-button" onclick="nav(0)">
-							<< First
+							&lt&lt First
 						</button>
 						<button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect nav-button" onclick="nav(window._curr - 1)">
-							< Prev
+							&lt Prev
 						</button>
 						<button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect nav-button" onclick="nav(window._curr + 1)">
-							Next >
+							Next &gt
 						</button>
 						<button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect nav-button" onclick="nav(window._images.length - 1)">
-							Last >>
+							Last &gt&gt
 						</button>
 
 						<div class="mdl-layout-spacer" style="height:10px"></div>
@@ -447,6 +467,8 @@
 						
 						<!-- Image being classified -->
 						<img id="i-image" src="https://placehold.it/600x400" />
+						<img id="i-image-l" class="half" src="https://placehold.it/600x400" />
+						<img id="i-image-r" class="half" src="https://placehold.it/600x400" />
 																		
 						<!-- Download result button -->
 						<button id="i-result-button" class="mdl-button mdl-js-button mdl-button--raised mdl-button--primary mdl-js-ripple-effect full-button" style="display:none" onclick="downloadResults()">
@@ -464,20 +486,20 @@
 							page and fill out the list of images in CSV format; for example:
 						</p>
 						<code>https://farm8.staticflickr.com/7464/26442427324_183d7062fb_c.jpg,https://farm2.staticflickr.com/1659/26258547992_c5626fcd27_c.jpg,https://farm2.staticflickr.com/1585/24680999884_61c9580d89_c.jpg,https://farm2.staticflickr.com/1474/24452412284_072ec9baa4_c.jpg</code>
-						</br></br>
+						<br/><br/>
 						<p>
 							Then fill out the desired features to be classified by a human, also in
 							CSV format; for example:
 						</p>
 						<code>Good,Bad</code>
-						</br></br>
+						<br/><br/>
 						<p>
 							Hit the "PREVIEW FORM" button to make sure that it looks like it is
 							supposed to and, when you are ready, hit the "PUBLISH FORM" button.
 							Your browser will be redirected to a URL that you can copy/paste for
 							anyone to start classifying the images.
 						</p>
-						</br></br>
+						<br/><br/>
 						<p>
 							This is what a completed form looks like:
 						</p>
