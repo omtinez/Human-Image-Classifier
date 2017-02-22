@@ -30,7 +30,7 @@
 	}
 	div.mdl-cell.main-cell form > img.half {
         display: none;
-		width: calc(50% - 5px)!important;
+		width: calc(50% - 5px);
 	}
 	div.mdl-cell.main-cell form > div {
 		width: 100%;
@@ -58,15 +58,36 @@
 	
 	button.mdl-button.nav-button {
 		margin: 0;
-		width: 25%!important;
-		width: calc(25% - 3px)!important;
+		width: 25%;
+		width: calc(25% - 3px);
 	}
 	
+	div.progress-wrapper {
+		margin: 0;
+		width: 100%;
+		width: calc(100% - 1px);
+        display: block;
+        padding-bottom:5px;
+    }
+
+    div.progress-wrapper span {
+        display: inline-block;
+        width: 5%;
+		width: calc(5% - 5px);
+    }
+
+    div.progress-wrapper #progress-slider {
+        display: inline-block;
+        width: 90%;
+		width: calc(90% - 10px);
+    }
+
 	button.mdl-button.ft-button {
 		margin: 5px 10px 10px 5px;
-		width: calc(100% - 12px)!important;
+		width: calc(100% - 12px);
 		border: 1px solid black;
 	}
+        
 	button.mdl-button.ft-button.mdl-button--raised {
 		width: calc(100% - 10px)!important;
 	}
@@ -86,6 +107,9 @@
 	</script>
 
 	<script>
+        
+    // Global variables and parameters
+    window._cacheLength = 3;
 	
 	function clearImages() {
 		window._curr = -1;
@@ -93,8 +117,11 @@
 		window._features = [];
 		document.querySelector('#i-image').src = 'https://placehold.it/600x400';
         document.querySelector('#i-image').style.display = 'block';
-                document.querySelector('#i-image-l').style.display = 'none';
-                document.querySelector('#i-image-r').style.display = 'none';
+        document.querySelector('#i-image-l').style.display = 'none';
+        document.querySelector('#i-image-r').style.display = 'none';
+        document.querySelector('#i-progress').value = 0;
+        document.querySelector('#i-progress').min = 0;
+        document.querySelector('#i-progress').max = 100;
 	}
 	
 	function init(images, features, freeform, multiselect) {
@@ -124,6 +151,8 @@
 		}
 		document.querySelector('#i-feature-buttons').innerHTML = addHtml;
 		document.querySelector('#i-freeform__container').style.display = freeform ? 'block' : 'none';
+        document.querySelector('#i-progress').max = images.length - 1;
+        document.querySelector('#progress-max').innerText = images.length - 1;
 
 		nav(0);
 	}
@@ -275,6 +304,8 @@
 	
 	function nav(ix) {
 		if (window._images && window._images.length > 0) {
+            
+            // Display current image
 			window._curr = Math.min(window._images.length - 1, Math.max(0, ix));
             var imgsrc = window._images[window._curr];
             if (imgsrc.indexOf('::') === -1) {
@@ -290,6 +321,17 @@
                 document.querySelector('#i-image-l').style.display = 'inline-block';
                 document.querySelector('#i-image-r').style.display = 'inline-block';
             }
+            
+            // Update progress
+            document.querySelector('#i-progress').value = window._curr;
+            document.querySelector('#progress-curr').innerText = window._curr;
+            
+            // Cache next images
+            for (var delta = 0; delta < window._cacheLength; delta++) {
+                new Image().src = window._images[Math.min(window._images.length - 1, Math.max(0, ix + delta))];
+            }
+            
+            // Redraw UI
 			redraw();
 		}
 	}
@@ -402,11 +444,12 @@
 	<main class="mdl-layout__content">
 		<div class="page-content">
 			<div class="mdl-grid">
+                
 				<!-- Spacer for large screen -->
-				<div class="mdl-cell mdl-cell--3-col"></div>
+				<div class="mdl-cell mdl-cell--3-col mdl-cell--hide-phone"></div>
 				
 				<!-- Actual content -->
-				<div class="mdl-cell mdl-cell--6-col main-cell">
+				<div class="mdl-cell mdl-cell--6-col mdl-cell--8-col-tablet main-cell">
 				
 					<!-- The form to make new classifiers -->
 					<form id="classifier-maker" action="#" onsubmit="return false">
@@ -437,11 +480,20 @@
 						</button>
 					</form>
 					
-					<div class="mdl-layout-spacer" style="height:50px"></div>
+					<div class="mdl-layout-spacer mdl-cell--hide-phone" style="height:50px"></div>
 
 					<!-- The actual classifier form -->
 					<form id="classifier-input" action="#" onsubmit="return false">
 						<h3>Image classifier preview</h3>
+                        
+                        <!-- Navigation/progress slider -->
+                        <div class="progress-wrapper">
+                            <span id="progress-curr">0</span>
+                            <div id="progress-slider">
+                                <input id="i-progress" class="mdl-slider mdl-js-slider" type="range"  min="0" max="0" value="0" tabindex="0" disabled>
+                            </div>
+                            <span id="progress-max">0</span>
+                        </div>
 						
 						<!-- Navigation buttons -->
 						<button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect nav-button" onclick="nav(0)">
@@ -469,7 +521,7 @@
 						<img id="i-image" src="https://placehold.it/600x400" />
 						<img id="i-image-l" class="half" src="https://placehold.it/600x400" />
 						<img id="i-image-r" class="half" src="https://placehold.it/600x400" />
-																		
+                        
 						<!-- Download result button -->
 						<button id="i-result-button" class="mdl-button mdl-js-button mdl-button--raised mdl-button--primary mdl-js-ripple-effect full-button" style="display:none" onclick="downloadResults()">
 							Download Results
@@ -508,7 +560,7 @@
 				</div>
 				
 				<!-- Spacer for large screen -->
-				<div class="mdl-cell mdl-cell--3-col"></div>
+				<div class="mdl-cell mdl-cell--3-col mdl-cell--hide-phone"></div>
 			</div>
 		</div>
 	</main>
